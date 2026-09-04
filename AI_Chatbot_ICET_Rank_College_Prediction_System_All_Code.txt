@@ -1,0 +1,525 @@
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/README.md
+==========================================================================================
+
+# AI Chatbot for ICET Rank and College Prediction System
+
+## Technologies
+- Python + Flask
+- HTML5
+- CSS3
+- JavaScript
+- SQL/SQLite
+- REST APIs
+- Agentic AI-style multi-agent orchestration
+
+## Agent architecture
+
+1. Rank Agent — converts an ICET score into an indicative rank band.
+2. College Matching Agent — compares rank with college cutoff data.
+3. Preference Agent — considers course, fee budget and city.
+4. Explanation Agent — produces a simple explanation.
+5. Agent Orchestrator — coordinates all agents.
+
+This project is designed as a college academic project. It does not claim to reproduce the official ICET ranking algorithm.
+
+## Run
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r backend/requirements.txt
+python backend/app.py
+```
+
+Open:
+
+http://127.0.0.1:5000
+
+The database is created automatically at `database/icet_predictor.db`.
+
+## REST APIs
+
+GET `/api/colleges`
+
+POST `/api/predict`
+
+Example:
+```json
+{
+  "score": 125,
+  "category": "OC",
+  "region": "AU",
+  "course": "MBA",
+  "city": "Visakhapatnam",
+  "max_fee": 55000
+}
+```
+
+POST `/api/chat`
+
+Example:
+```json
+{
+  "message": "My score is 125"
+}
+```
+
+## Important
+The sample college and cutoff values are demonstration data. Replace them with verified official/current counselling data before using the application for real admission decisions.
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/app.py
+==========================================================================================
+
+from flask import Flask, render_template, request, jsonify
+import sqlite3, re
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR.parent / "database" / "icet_predictor.db"
+
+app = Flask(__name__, template_folder="templates", static_folder="static")
+
+def db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = db()
+    schema = (BASE_DIR.parent / "database" / "schema.sql").read_text(encoding="utf-8")
+    conn.executescript(schema)
+    conn.commit()
+    conn.close()
+
+def get_colleges():
+    conn=db()
+    rows=conn.execute("SELECT * FROM colleges ORDER BY cutoff_rank ASC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+# ---------------- Agentic AI layer ----------------
+# Each agent has one focused responsibility. The orchestrator combines
+# their outputs into one prediction and chatbot response.
+
+class RankAgent:
+    def estimate_rank(self, score):
+        # Educational approximation for demo purposes; not an official ICET formula.
+        score=float(score)
+        if score >= 150: band="1-500"
+        elif score >= 140: band="501-1500"
+        elif score >= 130: band="1501-4000"
+        elif score >= 120: band="4001-9000"
+        elif score >= 110: band="9001-18000"
+        elif score >= 100: band="18001-35000"
+        elif score >= 90: band="35001-60000"
+        elif score >= 80: band="60001-90000"
+        elif score >= 70: band="90001-130000"
+        else: band="130001+"
+        return {"score":score,"estimated_rank_band":band}
+
+class CollegeAgent:
+    def predict(self, rank, category="OC", region="AU", limit=8):
+        colleges=get_colleges()
+        try:
+            rank_value=int(rank)
+        except:
+            rank_value=999999
+
+        # cutoff_rank is treated as an approximate last-rank indicator.
+        ranked=[]
+        for c in colleges:
+            cutoff=int(c["cutoff_rank"])
+            if rank_value <= cutoff:
+                chance="High"
+                confidence=90
+            elif rank_value <= cutoff*1.35:
+                chance="Medium"
+                confidence=65
+            elif rank_value <= cutoff*1.8:
+                chance="Low"
+                confidence=40
+            else:
+                continue
+            if category != "All" and c["category"] != category and c["category"] != "All":
+                continue
+            if region != "All" and c["region"] != region:
+                continue
+            item=dict(c)
+            item.update({"chance":chance,"confidence":confidence})
+            ranked.append(item)
+
+        ranked.sort(key=lambda x:(-x["confidence"], x["cutoff_rank"]))
+        return ranked[:limit]
+
+class PreferenceAgent:
+    def score_preferences(self, colleges, preferred_course="", max_fee=None, preferred_city=""):
+        result=[]
+        for c in colleges:
+            score=0
+            reasons=[]
+            if preferred_course:
+                if preferred_course.lower() in c["course"].lower():
+                    score+=30; reasons.append("preferred course")
+            if max_fee is not None:
+                if float(c["annual_fee"]) <= float(max_fee):
+                    score+=25; reasons.append("within fee budget")
+                else:
+                    score-=10
+            if preferred_city:
+                if preferred_city.lower() in c["city"].lower():
+                    score+=25; reasons.append("preferred city")
+            item=dict(c)
+            item["preference_score"]=score
+            item["preference_reasons"]=", ".join(reasons) if reasons else "rank-based match"
+            result.append(item)
+        return sorted(result,key=lambda x:(-x["preference_score"], x["cutoff_rank"]))
+
+class ExplanationAgent:
+    def explain(self, rank_info, predictions):
+        if not predictions:
+            return f"Your estimated rank band is {rank_info['estimated_rank_band']}. I could not find a close match in the current demo database. Try a broader category/region or add more colleges."
+        high=sum(1 for x in predictions if x["chance"]=="High")
+        medium=sum(1 for x in predictions if x["chance"]=="Medium")
+        return (f"Based on an estimated rank band of {rank_info['estimated_rank_band']}, "
+                f"I found {len(predictions)} possible colleges: {high} high-chance and "
+                f"{medium} medium-chance options. These are indicative predictions, not admission guarantees.")
+
+class AgentOrchestrator:
+    def __init__(self):
+        self.rank_agent=RankAgent()
+        self.college_agent=CollegeAgent()
+        self.preference_agent=PreferenceAgent()
+        self.explanation_agent=ExplanationAgent()
+
+    def predict(self, payload):
+        score=float(payload.get("score",0))
+        rank_info=self.rank_agent.estimate_rank(score)
+
+        rank_for_lookup = payload.get("rank")
+        if not rank_for_lookup:
+            # Use midpoint of estimated band for demo matching.
+            band=rank_info["estimated_rank_band"]
+            if "+" in band:
+                rank_for_lookup=150000
+            else:
+                a,b=map(int,band.split("-"))
+                rank_for_lookup=(a+b)//2
+
+        preds=self.college_agent.predict(
+            rank_for_lookup,
+            payload.get("category","OC"),
+            payload.get("region","AU"),
+            12
+        )
+        max_fee=payload.get("max_fee")
+        max_fee=float(max_fee) if max_fee not in ("",None) else None
+        preds=self.preference_agent.score_preferences(
+            preds,
+            payload.get("course",""),
+            max_fee,
+            payload.get("city","")
+        )
+        explanation=self.explanation_agent.explain(rank_info,preds)
+        return {"rank_info":rank_info,"rank_used":rank_for_lookup,"predictions":preds,"explanation":explanation}
+
+orchestrator=AgentOrchestrator()
+
+@app.route("/")
+def home(): return render_template("index.html")
+
+@app.route("/predict")
+def predict_page(): return render_template("predict.html")
+
+@app.route("/chatbot")
+def chatbot_page(): return render_template("chatbot.html")
+
+@app.route("/colleges")
+def colleges_page(): return render_template("colleges.html")
+
+@app.get("/api/colleges")
+def api_colleges():
+    return jsonify(get_colleges())
+
+@app.post("/api/predict")
+def api_predict():
+    try:
+        payload=request.get_json(force=True)
+        if not payload.get("score") and not payload.get("rank"):
+            return jsonify({"error":"Enter an ICET score or rank."}),400
+        if payload.get("score"):
+            result=orchestrator.predict(payload)
+        else:
+            payload["score"]=0
+            result=orchestrator.predict(payload)
+            result["rank_info"]={"score":None,"estimated_rank_band":f"Provided rank: {payload['rank']}"}
+            result["rank_used"]=int(payload["rank"])
+            preds=orchestrator.college_agent.predict(
+                payload["rank"],payload.get("category","OC"),payload.get("region","AU"),12)
+            result["predictions"]=orchestrator.preference_agent.score_preferences(
+                preds,payload.get("course",""),
+                float(payload["max_fee"]) if payload.get("max_fee") else None,
+                payload.get("city",""))
+            result["explanation"]=orchestrator.explanation_agent.explain(result["rank_info"],result["predictions"])
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error":str(e)}),400
+
+def chatbot_reply(message):
+    text=message.lower().strip()
+    score_match=re.search(r"(?:score|marks?)\s*[:=]?\s*(\d{1,3}(?:\.\d+)?)",text)
+    rank_match=re.search(r"(?:rank|icet rank)\s*[:=]?\s*(\d{1,6})",text)
+    if score_match:
+        score=float(score_match.group(1))
+        result=orchestrator.predict({"score":score,"category":"OC","region":"AU"})
+        top=result["predictions"][:5]
+        names=", ".join(x["name"] for x in top)
+        return (f"With an ICET score of {score:g}, the demo Rank Agent estimates "
+                f"{result['rank_info']['estimated_rank_band']}. "
+                f"Possible colleges include: {names or 'no close matches'}. "
+                f"Ask me about fees, courses, categories, regions, or a specific college.")
+    if rank_match:
+        rank=int(rank_match.group(1))
+        preds=orchestrator.college_agent.predict(rank,"OC","AU",5)
+        names=", ".join(x["name"] for x in preds)
+        return f"For rank {rank}, the current demo prediction suggests: {names or 'no close matches'}. These are indicative only."
+    if "agent" in text:
+        return "I use an Agentic AI-style workflow: Rank Agent → College Matching Agent → Preference Agent → Explanation Agent → final response."
+    if "fee" in text or "fees" in text:
+        return "You can enter a maximum annual fee in the Predictor. I will prioritize colleges within your budget."
+    if "course" in text:
+        return "Enter a preferred course such as MBA or MCA. The Preference Agent will prioritize matching colleges."
+    if "hello" in text or "hi" in text:
+        return "Hello! I can estimate your ICET rank and suggest colleges. Try: 'My score is 125'."
+    return "I can help with ICET score/rank prediction, college suggestions, fees, courses and regions. Try 'score 125' or 'rank 5000'."
+
+@app.post("/api/chat")
+def api_chat():
+    data=request.get_json(force=True)
+    message=data.get("message","")
+    if not message.strip(): return jsonify({"error":"Message is empty."}),400
+    return jsonify({"reply":chatbot_reply(message)})
+
+if __name__=="__main__":
+    init_db()
+    app.run(debug=True)
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/requirements.txt
+==========================================================================================
+
+Flask==3.1.2
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/static/css/style.css
+==========================================================================================
+
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial;background:#f5f7fb;color:#172033}.nav{height:72px;background:#101827;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 7%;position:sticky;top:0;z-index:5}.brand{font-size:20px;font-weight:800;color:#fff;text-decoration:none}.links{display:flex;gap:24px}.links a{color:#cbd5e1;text-decoration:none}.links a:hover{color:#fff}main{min-height:calc(100vh - 120px)}footer{text-align:center;color:#7b8798;padding:25px;font-size:12px}.hero{max-width:1180px;margin:0 auto;padding:85px 25px;display:grid;grid-template-columns:1.2fr .8fr;gap:60px;align-items:center}.tag{font-size:11px;letter-spacing:2px;font-weight:800;color:#5b4cf0}.hero h1{font-size:52px;line-height:1.05;margin:15px 0}.hero h1 em{font-style:normal;color:#5b4cf0}.hero p,.page-head p{color:#64748b;font-size:17px;line-height:1.6}.hero-actions{display:flex;gap:12px;margin-top:28px}.btn{display:inline-block;border:0;background:#5b4cf0;color:white;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:700;cursor:pointer}.ghost{background:white;color:#5b4cf0;border:1px solid #ddd}.hero-card{background:#111827;border-radius:18px;padding:30px;box-shadow:0 18px 45px #11182730}.agent{background:#1f2937;color:#fff;padding:18px;border-radius:10px;font-weight:700}.agent span{display:block;color:#9ca3af;font-size:12px;font-weight:400;margin-top:5px}.arrow{text-align:center;color:#818cf8;padding:7px}.features{max-width:1130px;margin:0 auto 50px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:0 25px}.features>div,.panel{background:#fff;border:1px solid #e7eaf0;border-radius:12px;padding:24px;box-shadow:0 3px 15px #00000008}.features b{color:#5b4cf0}.notice{max-width:1130px;margin:20px auto 50px;padding:16px 20px;background:#fff7df;border:1px solid #f0dfaa;border-radius:10px;color:#765b12}.page-head{max-width:1050px;margin:55px auto 30px;padding:0 20px}.page-head h1{font-size:38px;margin:10px 0}.predict-grid{max-width:1050px;margin:auto;padding:0 20px 50px;display:grid;grid-template-columns:420px 1fr;gap:20px}label{display:block;font-weight:700;font-size:13px;margin-bottom:15px}small{font-weight:400;color:#8490a0}input,select{width:100%;padding:12px;margin-top:7px;border:1px solid #d9dee8;border-radius:7px;font:inherit}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.result h2{margin-top:0}.rank-box{background:#f0efff;border-radius:10px;padding:18px;margin-bottom:18px}.rank-box strong{display:block;font-size:26px;color:#4c3de0;margin-top:5px}.prediction{border:1px solid #e5e7eb;border-radius:9px;padding:13px;margin:9px 0}.prediction h3{margin:0 0 5px;font-size:15px}.badge{float:right;background:#e9f8ed;color:#17733b;border-radius:15px;padding:4px 8px;font-size:11px}.chat{max-width:850px;margin:auto;padding:0;overflow:hidden}.messages{height:430px;overflow:auto;padding:20px;background:#fafbfe}.msg{max-width:75%;padding:12px 15px;border-radius:12px;margin-bottom:12px;line-height:1.5;font-size:14px}.bot{background:#e9e8ff}.user{background:#5b4cf0;color:#fff;margin-left:auto}.chat form{display:flex;gap:10px;padding:15px}.chat form input{margin:0}.chips{max-width:850px;margin:15px auto 50px;display:flex;gap:8px}.chips button{border:1px solid #ddd;background:#fff;border-radius:20px;padding:8px 13px;cursor:pointer}.table-wrap{max-width:1050px;margin:0 auto 50px;overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:13px;border-bottom:1px solid #edf0f4;font-size:13px;white-space:nowrap}th{background:#f8fafc;color:#64748b}@media(max-width:800px){.nav{padding:0 20px}.links{gap:10px;font-size:12px}.hero,.predict-grid{grid-template-columns:1fr}.hero h1{font-size:40px}.features{grid-template-columns:1fr}.predict-grid{padding-bottom:30px}}
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/static/js/app.js
+==========================================================================================
+
+async function post(url,data){
+ const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+ const d=await r.json(); if(!r.ok) throw Error(d.error||"Request failed"); return d;
+}
+function initPredictor(){
+ const form=document.getElementById("predictForm");
+ form.addEventListener("submit",async e=>{
+  e.preventDefault();
+  const data={score:document.getElementById("score").value,rank:document.getElementById("rank").value,
+   category:document.getElementById("category").value,region:document.getElementById("region").value,
+   course:document.getElementById("course").value,city:document.getElementById("city").value,max_fee:document.getElementById("max_fee").value};
+  const out=document.getElementById("result"); out.innerHTML="<h2>Thinking…</h2><p>Agents are processing your request.</p>";
+  try{
+   const d=await post("/api/predict",data);
+   let html=`<h2>Prediction Result</h2><div class="rank-box">Estimated Rank Band<strong>${d.rank_info.estimated_rank_band}</strong><small>Rank used for college matching: ${d.rank_used}</small></div><p>${d.explanation}</p>`;
+   if(d.predictions.length) d.predictions.forEach(x=>html+=`<div class="prediction"><span class="badge">${x.chance} • ${x.confidence}%</span><h3>${x.name}</h3><div>${x.city} • ${x.region} • ${x.course}</div><small>Approx. cutoff: ${x.cutoff_rank} | Fee: ₹${Number(x.annual_fee).toLocaleString()}<br>${x.preference_reasons}</small></div>`);
+   else html+="<p>No matching colleges found.</p>";
+   out.innerHTML=html;
+  }catch(err){out.innerHTML=`<h2>Error</h2><p>${err.message}</p>`}
+ });
+}
+function initChat(){
+ const form=document.getElementById("chatForm"), input=document.getElementById("chatInput"), box=document.getElementById("messages");
+ form.addEventListener("submit",async e=>{e.preventDefault();sendChat(input.value)});
+ window.quick=(text)=>{input.value=text;sendChat(text)};
+ async function sendChat(text){
+  if(!text.trim())return;
+  box.innerHTML+=`<div class="user msg">${escapeHtml(text)}</div>`;input.value="";
+  try{const d=await post("/api/chat",{message:text});box.innerHTML+=`<div class="bot msg">${escapeHtml(d.reply)}</div>`}
+  catch(e){box.innerHTML+=`<div class="bot msg">Sorry, I couldn't process that.</div>`}
+  box.scrollTop=box.scrollHeight;
+ }
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+async function loadColleges(){
+ const body=document.getElementById("collegeBody"), r=await fetch("/api/colleges"), rows=await r.json();
+ body.innerHTML=rows.map(x=>`<tr><td><b>${x.name}</b><br><small>${x.university}</small></td><td>${x.city}</td><td>${x.region}</td><td>${x.course}</td><td>${x.cutoff_rank}</td><td>₹${Number(x.annual_fee).toLocaleString()}</td></tr>`).join("");
+}
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/templates/base.html
+==========================================================================================
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICET AI Predictor</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<nav class="nav">
+  <a class="brand" href="/">🎓 ICET AI Predictor</a>
+  <div class="links">
+    <a href="/">Home</a><a href="/predict">Predict</a><a href="/chatbot">AI Chatbot</a><a href="/colleges">Colleges</a>
+  </div>
+</nav>
+<main>{% block content %}{% endblock %}</main>
+<footer>AI Chatbot for ICET Rank & College Prediction • Academic project demo</footer>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/templates/chatbot.html
+==========================================================================================
+
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><span class="tag">AGENTIC AI ASSISTANT</span><h1>ICET AI Chatbot</h1><p>Ask about your score, rank and possible colleges.</p></section>
+<div class="chat panel">
+  <div id="messages" class="messages"><div class="bot msg">Hello! 👋 Tell me your ICET score or rank. Example: <b>My score is 125</b>.</div></div>
+  <form id="chatForm"><input id="chatInput" placeholder="Ask: What colleges can I get with score 125?" autocomplete="off"><button class="btn">Send</button></form>
+</div>
+<div class="chips"><button onclick="quick('My score is 125')">Score 125</button><button onclick="quick('My rank is 5000')">Rank 5000</button><button onclick="quick('How does the agentic AI work?')">How does it work?</button></div>
+{% endblock %}
+{% block scripts %}<script>initChat();</script>{% endblock %}
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/templates/colleges.html
+==========================================================================================
+
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><span class="tag">SQL COLLEGE DATABASE</span><h1>College Directory</h1><p>Demo data used by the prediction agents.</p></section>
+<div class="panel table-wrap"><table><thead><tr><th>College</th><th>City</th><th>Region</th><th>Course</th><th>Cutoff Rank</th><th>Annual Fee</th></tr></thead><tbody id="collegeBody"></tbody></table></div>
+{% endblock %}
+{% block scripts %}<script>loadColleges();</script>{% endblock %}
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/templates/index.html
+==========================================================================================
+
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <span class="tag">AGENTIC AI • PYTHON • REST API • SQL</span>
+    <h1>ICET Rank & College<br><em>Prediction System</em></h1>
+    <p>Estimate your ICET rank and discover suitable colleges using a multi-agent prediction workflow.</p>
+    <div class="hero-actions"><a class="btn" href="/predict">Start Prediction</a><a class="btn ghost" href="/chatbot">Chat with AI</a></div>
+  </div>
+  <div class="hero-card">
+    <div class="agent">🧠 Rank Agent <span>Analyzes score</span></div>
+    <div class="arrow">↓</div>
+    <div class="agent">🏫 College Agent <span>Matches colleges</span></div>
+    <div class="arrow">↓</div>
+    <div class="agent">🎯 Preference Agent <span>Applies preferences</span></div>
+    <div class="arrow">↓</div>
+    <div class="agent">💬 Explanation Agent <span>Explains result</span></div>
+  </div>
+</section>
+<section class="features">
+  <div><b>01</b><h3>Rank Estimation</h3><p>Get an indicative rank band from your ICET score.</p></div>
+  <div><b>02</b><h3>College Prediction</h3><p>Match rank with a SQL-backed college dataset.</p></div>
+  <div><b>03</b><h3>AI Chatbot</h3><p>Ask natural-language questions about predictions.</p></div>
+</section>
+<div class="notice">⚠️ Predictions are for educational/demo purposes. Actual ICET ranks, cutoffs and admissions depend on official results, counselling rules, category, region, seat availability and yearly changes.</div>
+{% endblock %}
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/backend/templates/predict.html
+==========================================================================================
+
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><span class="tag">PREDICTION ENGINE</span><h1>Predict Your College</h1><p>Enter your score or rank and preferences.</p></section>
+<div class="predict-grid">
+<form id="predictForm" class="panel">
+  <label>ICET Score <small>(optional if rank is provided)</small><input id="score" type="number" min="0" max="200" step="0.01" placeholder="e.g. 125"></label>
+  <label>ICET Rank <small>(optional)</small><input id="rank" type="number" min="1" placeholder="e.g. 5000"></label>
+  <div class="two">
+    <label>Category<select id="category"><option>OC</option><option>BC</option><option>SC</option><option>ST</option><option>All</option></select></label>
+    <label>Region<select id="region"><option>AU</option><option>OU</option><option>All</option></select></label>
+  </div>
+  <div class="two">
+    <label>Preferred Course<input id="course" placeholder="MBA / MCA"></label>
+    <label>Preferred City<input id="city" placeholder="Hyderabad"></label>
+  </div>
+  <label>Maximum Annual Fee <small>(optional)</small><input id="max_fee" type="number" min="0" placeholder="50000"></label>
+  <button class="btn" type="submit">Run Agentic Prediction</button>
+</form>
+<div id="result" class="panel result"><h2>Your Result</h2><p>Submit the form to see predictions.</p></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>initPredictor();</script>{% endblock %}
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/database/schema.sql
+==========================================================================================
+
+CREATE TABLE IF NOT EXISTS colleges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    university TEXT NOT NULL,
+    city TEXT NOT NULL,
+    region TEXT NOT NULL,
+    category TEXT NOT NULL,
+    course TEXT NOT NULL,
+    cutoff_rank INTEGER NOT NULL,
+    annual_fee REAL NOT NULL,
+    website TEXT
+);
+
+INSERT OR IGNORE INTO colleges
+(id,name,university,city,region,category,course,cutoff_rank,annual_fee,website) VALUES
+(1,'Kakatiya Institute of Technology and Management','Kakatiya University','Warangal','AU','OC','MBA',3500,52000,'https://example.com'),
+(2,'University College of Commerce & Business Management','Kakatiya University','Warangal','AU','OC','MBA',7000,35000,'https://example.com'),
+(3,'Andhra University College of Engineering','Andhra University','Visakhapatnam','AU','OC','MBA',2500,60000,'https://example.com'),
+(4,'Andhra University School of Management Studies','Andhra University','Visakhapatnam','AU','OC','MBA',5500,48000,'https://example.com'),
+(5,'JNTU Kakinada School of Business Management','JNTU Kakinada','Kakinada','AU','OC','MBA',8000,55000,'https://example.com'),
+(6,'JNTU Hyderabad School of Management Studies','JNTUH','Hyderabad','OU','OC','MBA',1800,65000,'https://example.com'),
+(7,'Osmania University College of Commerce & Business Management','Osmania University','Hyderabad','OU','OC','MBA',3200,50000,'https://example.com'),
+(8,'Nizam College','Osmania University','Hyderabad','OU','OC','MBA',9000,42000,'https://example.com'),
+(9,'Kakatiya University Department of Computer Science','Kakatiya University','Warangal','AU','OC','MCA',4500,45000,'https://example.com'),
+(10,'Andhra University Department of Computer Science','Andhra University','Visakhapatnam','AU','OC','MCA',3500,50000,'https://example.com'),
+(11,'Osmania University Department of Computer Science','Osmania University','Hyderabad','OU','OC','MCA',3000,48000,'https://example.com'),
+(12,'JNTU Hyderabad School of IT','JNTUH','Hyderabad','OU','OC','MCA',5000,58000,'https://example.com'),
+(13,'Adikavi Nannaya University','AKNU','Rajamahendravaram','AU','OC','MBA',14000,38000,'https://example.com'),
+(14,'Acharya Nagarjuna University','ANU','Guntur','AU','OC','MBA',12000,40000,'https://example.com'),
+(15,'Sri Venkateswara University','SVU','Tirupati','AU','OC','MBA',10000,45000,'https://example.com'),
+(16,'Dr. B.R. Ambedkar Open University','BRAOU','Hyderabad','OU','OC','MBA',25000,30000,'https://example.com');
+
+
+==========================================================================================
+FILE: AI_Chatbot_ICET_Rank_College_Prediction/frontend/README.txt
+==========================================================================================
+
+The Flask backend serves the complete HTML/CSS/JavaScript frontend. This folder is reserved for future standalone frontend assets.
