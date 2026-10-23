@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><span class="tag">AGENTIC AI ASSISTANT</span><h1>ICET AI Chatbot</h1><p>Ask about your score, rank and possible colleges.</p></section>
+<div class="chat panel">
+  <div id="messages" class="messages"><div class="bot msg">Hello! 👋 Tell me your ICET score or rank. Example: <b>My score is 125</b>.</div></div>
+  <form id="chatForm"><input id="chatInput" placeholder="Ask: What colleges can I get with score 125?" autocomplete="off"><button class="btn">Send</button></form>
+</div>
+<div class="chips"><button onclick="quick('My score is 125')">Score 125</button><button onclick="quick('My rank is 5000')">Rank 5000</button><button onclick="quick('How does the agentic AI work?')">How does it work?</button></div>
+{% endblock %}
+{% block scripts %}<script>initChat();</script>{% endblock %}

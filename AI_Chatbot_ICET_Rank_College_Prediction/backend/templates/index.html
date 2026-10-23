@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <span class="tag">AGENTIC AI • PYTHON • REST API • SQL</span>
+    <h1>ICET Rank & College<br><em>Prediction System</em></h1>
+    <p>Estimate your ICET rank and discover suitable colleges using a multi-agent prediction workflow.</p>
+    <div class="hero-actions"><a class="btn" href="/predict">Start Prediction</a><a class="btn ghost" href="/chatbot">Chat with AI</a></div>
+  </div>
+  <div class="hero-card">
+    <div class="agent">🧠 Rank Agent <span>Analyzes score</span></div>
+    <div class="arrow">↓</div>
+    <div class="agent">🏫 College Agent <span>Matches colleges</span></div>
+    <div class="arrow">↓</div>
+    <div class="agent">🎯 Preference Agent <span>Applies preferences</span></div>
+    <div class="arrow">↓</div>
+    <div class="agent">💬 Explanation Agent <span>Explains result</span></div>
+  </div>
+</section>
+<section class="features">
+  <div><b>01</b><h3>Rank Estimation</h3><p>Get an indicative rank band from your ICET score.</p></div>
+  <div><b>02</b><h3>College Prediction</h3><p>Match rank with a SQL-backed college dataset.</p></div>
+  <div><b>03</b><h3>AI Chatbot</h3><p>Ask natural-language questions about predictions.</p></div>
+</section>
+<div class="notice">⚠️ Predictions are for educational/demo purposes. Actual ICET ranks, cutoffs and admissions depend on official results, counselling rules, category, region, seat availability and yearly changes.</div>
+{% endblock %}
