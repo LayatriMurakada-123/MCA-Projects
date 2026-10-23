@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><span class="tag">SQL COLLEGE DATABASE</span><h1>College Directory</h1><p>Demo data used by the prediction agents.</p></section>
+<div class="panel table-wrap"><table><thead><tr><th>College</th><th>City</th><th>Region</th><th>Course</th><th>Cutoff Rank</th><th>Annual Fee</th></tr></thead><tbody id="collegeBody"></tbody></table></div>
+{% endblock %}
+{% block scripts %}<script>loadColleges();</script>{% endblock %}

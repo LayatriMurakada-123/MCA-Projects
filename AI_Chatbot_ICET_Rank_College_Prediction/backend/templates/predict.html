@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><span class="tag">PREDICTION ENGINE</span><h1>Predict Your College</h1><p>Enter your score or rank and preferences.</p></section>
+<div class="predict-grid">
+<form id="predictForm" class="panel">
+  <label>ICET Score <small>(optional if rank is provided)</small><input id="score" type="number" min="0" max="200" step="0.01" placeholder="e.g. 125"></label>
+  <label>ICET Rank <small>(optional)</small><input id="rank" type="number" min="1" placeholder="e.g. 5000"></label>
+  <div class="two">
+    <label>Category<select id="category"><option>OC</option><option>BC</option><option>SC</option><option>ST</option><option>All</option></select></label>
+    <label>Region<select id="region"><option>AU</option><option>OU</option><option>All</option></select></label>
+  </div>
+  <div class="two">
+    <label>Preferred Course<input id="course" placeholder="MBA / MCA"></label>
+    <label>Preferred City<input id="city" placeholder="Hyderabad"></label>
+  </div>
+  <label>Maximum Annual Fee <small>(optional)</small><input id="max_fee" type="number" min="0" placeholder="50000"></label>
+  <button class="btn" type="submit">Run Agentic Prediction</button>
+</form>
+<div id="result" class="panel result"><h2>Your Result</h2><p>Submit the form to see predictions.</p></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>initPredictor();</script>{% endblock %}
