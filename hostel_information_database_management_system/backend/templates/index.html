@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block heading %}Dashboard{% endblock %}
+{% block content %}
+<div class="cards">
+  <div class="card"><span>Total Students</span><strong id="studentsCount">0</strong><small>Registered students</small></div>
+  <div class="card"><span>Total Rooms</span><strong id="roomsCount">0</strong><small>Hostel rooms</small></div>
+  <div class="card"><span>Available Rooms</span><strong id="availableRooms">0</strong><small>Rooms with vacancy</small></div>
+  <div class="card"><span>Pending Complaints</span><strong id="pendingComplaints">0</strong><small>Need attention</small></div>
+</div>
+<div class="grid-2">
+  <div class="panel">
+    <h2>Fee Overview</h2>
+    <div class="fee-box"><span>Total Collected</span><strong id="paidFees">₹0</strong></div>
+    <div class="fee-box"><span>Total Recorded</span><strong id="totalFees">₹0</strong></div>
+  </div>
+  <div class="panel">
+    <h2>Quick Actions</h2>
+    <div class="actions">
+      <a class="btn" href="/students">Manage Students</a>
+      <a class="btn secondary" href="/rooms">Manage Rooms</a>
+      <a class="btn secondary" href="/fees">Manage Fees</a>
+      <a class="btn secondary" href="/complaints">View Complaints</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>loadDashboard();</script>{% endblock %}

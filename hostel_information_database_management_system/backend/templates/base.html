@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hostel Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="brand">🏠 HostelMS</div>
+        <nav>
+            <a href="/">Dashboard</a>
+            <a href="/students">Students</a>
+            <a href="/rooms">Rooms</a>
+            <a href="/staff">Staff</a>
+            <a href="/fees">Fees</a>
+            <a href="/complaints">Complaints</a>
+        </nav>
+        <div class="sidebar-footer">Hostel Information DBMS</div>
+    </aside>
+    <main class="main">
+        <header class="topbar">
+            <div>
+                <h1>{% block heading %}Dashboard{% endblock %}</h1>
+                <p>Manage hostel information easily</p>
+            </div>
+            <div class="admin">👤 Admin</div>
+        </header>
+        <section class="content">
+            {% block content %}{% endblock %}
+        </section>
+    </main>
+</div>
+<div id="toast"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

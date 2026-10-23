@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block heading %}Rooms{% endblock %}
+{% block content %}
+<div class="toolbar"><div><p class="intro">Track room capacity, occupancy and availability.</p></div><button class="btn" onclick="openModal()">Add</button></div>
+<div class="panel table-panel"><div class="table-wrap"><table id="roomsTable"><thead><tr><th>ID</th><th>Room</th><th>Block</th><th>Floor</th><th>Capacity</th><th>Occupied</th><th>Available</th><th>Type</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div>
+<div class="modal" id="modal"><div class="modal-card"><button class="close" onclick="closeModal()">×</button><h2>Add</h2><form id="dataForm">
+      <div class="field"><label>Room Number</label><input name="room_number" required></div>
+      <div class="field"><label>Block</label><input name="block" value="A" required></div>
+      <div class="field"><label>Floor</label><input name="floor" type="number" min="0" value="1" required></div>
+      <div class="field"><label>Capacity</label><input name="capacity" type="number" min="1" value="4" required></div>
+      <div class="field"><label>Type</label><select name="type"><option>4 Sharing</option><option>3 Sharing</option><option>2 Sharing</option><option>Single</option></select></div><button class="btn" type="submit">Save</button></form></div></div>
+{% endblock %}
+{% block scripts %}<script>setupPage("rooms");</script>{% endblock %}

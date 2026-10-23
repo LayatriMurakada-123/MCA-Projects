@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block heading %}Students{% endblock %}
+{% block content %}
+<div class="toolbar"><div><p class="intro">Add, update and manage hostel student records.</p></div><button class="btn" onclick="openModal()">Add</button></div>
+<div class="panel table-panel"><div class="table-wrap"><table id="studentsTable"><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Course</th><th>Year</th><th>Room</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div>
+<div class="modal" id="modal"><div class="modal-card"><button class="close" onclick="closeModal()">×</button><h2>Add</h2><form id="dataForm">
+      <div class="field"><label>Name</label><input name="name" required></div>
+      <div class="field"><label>Email</label><input name="email" type="email" required></div>
+      <div class="field"><label>Phone</label><input name="phone" required></div>
+      <div class="field"><label>Course</label><input name="course" value="MCA" required></div>
+      <div class="field"><label>Year</label><select name="year"><option>1st Year</option><option>2nd Year</option><option>3rd Year</option></select></div>
+      <div class="field"><label>Room</label><select name="room_id" id="roomSelect"><option value="">No room</option></select></div><button class="btn" type="submit">Save</button></form></div></div>
+{% endblock %}
+{% block scripts %}<script>setupPage("students");</script>{% endblock %}

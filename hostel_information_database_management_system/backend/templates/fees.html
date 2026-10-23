@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block heading %}Fees{% endblock %}
+{% block content %}
+<div class="toolbar"><div><p class="intro">Record hostel fees and payment status.</p></div><button class="btn" onclick="openModal()">Add</button></div>
+<div class="panel table-panel"><div class="table-wrap"><table id="feesTable"><thead><tr><th>ID</th><th>Student</th><th>Amount</th><th>Due Date</th><th>Paid Date</th><th>Status</th><th>Description</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div>
+<div class="modal" id="modal"><div class="modal-card"><button class="close" onclick="closeModal()">×</button><h2>Add</h2><form id="dataForm">
+      <div class="field"><label>Student ID</label><input name="student_id" type="number" min="1" required></div>
+      <div class="field"><label>Amount</label><input name="amount" type="number" min="0" step="0.01" required></div>
+      <div class="field"><label>Due Date</label><input name="due_date" type="date" required></div>
+      <div class="field"><label>Paid Date</label><input name="paid_date" type="date"></div>
+      <div class="field"><label>Status</label><select name="status"><option>Pending</option><option>Paid</option><option>Partial</option></select></div>
+      <div class="field"><label>Description</label><input name="description"></div><button class="btn" type="submit">Save</button></form></div></div>
+{% endblock %}
+{% block scripts %}<script>setupPage("fees");</script>{% endblock %}

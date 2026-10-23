@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block heading %}Complaints{% endblock %}
+{% block content %}
+<div class="toolbar"><div><p class="intro">Submit and track hostel complaints.</p></div><button class="btn" onclick="openModal()">Add</button></div>
+<div class="panel table-panel"><div class="table-wrap"><table id="complaintsTable"><thead><tr><th>ID</th><th>Student</th><th>Title</th><th>Description</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody></tbody></table></div></div>
+<div class="modal" id="modal"><div class="modal-card"><button class="close" onclick="closeModal()">×</button><h2>Add</h2><form id="dataForm">
+      <div class="field"><label>Student ID</label><input name="student_id" type="number" min="1" required></div>
+      <div class="field"><label>Title</label><input name="title" required></div>
+      <div class="field"><label>Description</label><textarea name="description" required></textarea></div>
+      <div class="field"><label>Status</label><select name="status"><option>Pending</option><option>In Progress</option><option>Resolved</option></select></div><button class="btn" type="submit">Save</button></form></div></div>
+{% endblock %}
+{% block scripts %}<script>setupPage("complaints");</script>{% endblock %}
